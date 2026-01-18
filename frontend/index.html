@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JLegal - Document Processor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --bg: #0f172a;
+            --bg-card: #1e293b;
+            --bg-input: #334155;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: #475569;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --error: #ef4444;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-card);
+            border-radius: 20px;
+            font-size: 0.875rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        .status-dot.offline { background: var(--error); }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid { grid-template-columns: 1fr; }
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid var(--border);
+        }
+
+        .card-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+        }
+
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+
+        .upload-text { color: var(--text-muted); }
+
+        .upload-text strong { color: var(--primary); }
+
+        #fileInput { display: none; }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover { background: var(--primary-dark); }
+
+        .btn-secondary {
+            background: var(--bg-input);
+            color: var(--text);
+        }
+
+        .btn-secondary:hover { background: var(--border); }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .document-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .document-item {
+            padding: 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .document-item:hover { border-color: var(--primary); }
+
+        .document-item.selected {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .doc-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .doc-name {
+            font-weight: 500;
+            word-break: break-all;
+            flex: 1;
+        }
+
+        .doc-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .doc-status.pending { background: var(--warning); color: black; }
+        .doc-status.processing { background: var(--primary); color: white; }
+        .doc-status.completed { background: var(--success); color: white; }
+        .doc-status.failed { background: var(--error); color: white; }
+
+        .doc-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .detail-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 8px 16px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .tab:hover { background: var(--bg-input); color: var(--text); }
+
+        .tab.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .text-content {
+            background: var(--bg-input);
+            padding: 20px;
+            border-radius: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 0.875rem;
+            line-height: 1.6;
+        }
+
+        .analysis-result {
+            background: var(--bg-input);
+            padding: 20px;
+            border-radius: 8px;
+            line-height: 1.8;
+        }
+
+        .analysis-result h3 {
+            color: var(--primary);
+            margin: 16px 0 8px;
+        }
+
+        .analysis-result h3:first-child { margin-top: 0; }
+
+        .analysis-result ul {
+            margin-left: 20px;
+            margin-bottom: 12px;
+        }
+
+        .question-form {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .question-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg-input);
+            color: var(--text);
+            font-size: 0.875rem;
+        }
+
+        .question-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 12px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .key-terms-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .key-term-card {
+            background: var(--bg);
+            padding: 16px;
+            border-radius: 8px;
+        }
+
+        .key-term-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .key-term-value {
+            font-weight: 500;
+        }
+
+        .risk-item {
+            padding: 16px;
+            background: var(--bg);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border-left: 4px solid var(--warning);
+        }
+
+        .risk-item.high { border-left-color: var(--error); }
+        .risk-item.medium { border-left-color: var(--warning); }
+        .risk-item.low { border-left-color: var(--success); }
+
+        .delete-btn {
+            background: var(--error);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            margin-top: 8px;
+        }
+
+        .delete-btn:hover { opacity: 0.8; }
+
+        .refresh-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .refresh-btn:hover { background: var(--bg-input); }
+
+        /* Settings Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 500px;
+            width: 90%;
+            border: 1px solid var(--border);
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .setting-group {
+            margin-bottom: 24px;
+        }
+
+        .setting-label {
+            display: block;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .setting-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg-input);
+            color: var(--text);
+            font-size: 0.875rem;
+            font-family: monospace;
+        }
+
+        .setting-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .current-key {
+            font-family: monospace;
+            background: var(--bg-input);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+
+        .settings-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 1.25rem;
+        }
+
+        .settings-btn:hover { background: var(--bg-card); }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .warning-text {
+            color: var(--warning);
+            font-size: 0.75rem;
+            margin-top: 8px;
+        }
+
+        .success-text {
+            color: var(--success);
+            font-size: 0.875rem;
+            margin-top: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">JLegal Document Processor</div>
+            <div class="header-actions">
+                <div class="status-badge">
+                    <span class="status-dot" id="statusDot"></span>
+                    <span id="statusText">Checking...</span>
+                </div>
+                <button class="settings-btn" onclick="openSettings()" title="Settings">&#9881;</button>
+            </div>
+        </header>
+
+        <!-- Settings Modal -->
+        <div class="modal-overlay" id="settingsModal">
+            <div class="modal">
+                <div class="modal-title">
+                    <span>Settings</span>
+                    <button class="modal-close" onclick="closeSettings()">&times;</button>
+                </div>
+
+                <div class="setting-group">
+                    <label class="setting-label">Current Claude API Key</label>
+                    <div class="current-key" id="currentKeyPreview">Loading...</div>
+                </div>
+
+                <div class="setting-group">
+                    <label class="setting-label">New API Key</label>
+                    <input type="password" class="setting-input" id="newApiKey"
+                           placeholder="sk-ant-api03-...">
+                    <p class="warning-text">
+                        Get your key from <a href="https://console.anthropic.com" target="_blank" style="color: var(--primary);">console.anthropic.com</a>
+                    </p>
+                </div>
+
+                <button class="btn btn-primary" onclick="updateApiKey()" id="updateKeyBtn" style="width: 100%;">
+                    Update API Key
+                </button>
+
+                <div id="keyUpdateResult" style="display: none;"></div>
+
+                <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border);">
+                    <p style="font-size: 0.75rem; color: var(--text-muted);">
+                        Note: After updating the key, the API container needs to be restarted.
+                        Run this command on the server:
+                    </p>
+                    <code style="display: block; background: var(--bg-input); padding: 12px; border-radius: 6px; margin-top: 8px; font-size: 0.75rem;">
+                        docker-compose restart api
+                    </code>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <div class="sidebar">
+                <div class="card">
+                    <div class="card-title">
+                        <span>Upload Document</span>
+                    </div>
+                    <div class="upload-zone" id="uploadZone">
+                        <div class="upload-icon">📄</div>
+                        <p class="upload-text">
+                            Drag & drop or <strong>click to browse</strong>
+                        </p>
+                        <p class="upload-text" style="font-size: 0.75rem; margin-top: 8px;">
+                            PDF, DOCX, TXT, Images (OCR)
+                        </p>
+                    </div>
+                    <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt,.rtf,.png,.jpg,.jpeg,.tiff">
+                    <div id="uploadProgress" style="display: none;">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <span>Uploading...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 24px;">
+                    <div class="card-title">
+                        <span>Documents</span>
+                        <button class="refresh-btn" onclick="loadDocuments()" title="Refresh">🔄</button>
+                    </div>
+                    <div class="document-list" id="documentList">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <span>Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="detail-panel">
+                <div class="card" id="detailCard">
+                    <div id="noSelection" class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <h3>No Document Selected</h3>
+                        <p>Upload or select a document to view details and analysis</p>
+                    </div>
+
+                    <div id="documentDetail" style="display: none;">
+                        <div class="card-title">
+                            <span id="detailFileName">Document Name</span>
+                        </div>
+
+                        <div class="tabs">
+                            <button class="tab active" data-tab="text">Extracted Text</button>
+                            <button class="tab" data-tab="summary">AI Summary</button>
+                            <button class="tab" data-tab="keyterms">Key Terms</button>
+                            <button class="tab" data-tab="ask">Ask AI</button>
+                            <button class="tab" data-tab="risks">Risk Analysis</button>
+                        </div>
+
+                        <div class="tab-content active" id="tab-text">
+                            <div id="extractedText" class="text-content">
+                                Loading...
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="tab-summary">
+                            <button class="btn btn-primary" onclick="getSummary()" id="summaryBtn">
+                                Generate Summary
+                            </button>
+                            <div id="summaryResult" class="analysis-result" style="margin-top: 16px; display: none;"></div>
+                        </div>
+
+                        <div class="tab-content" id="tab-keyterms">
+                            <button class="btn btn-primary" onclick="getKeyTerms()" id="keytermsBtn">
+                                Extract Key Terms
+                            </button>
+                            <div id="keytermsResult" style="margin-top: 16px; display: none;"></div>
+                        </div>
+
+                        <div class="tab-content" id="tab-ask">
+                            <div class="question-form">
+                                <input type="text" class="question-input" id="questionInput"
+                                       placeholder="Ask a question about this document...">
+                                <button class="btn btn-primary" onclick="askQuestion()">Ask</button>
+                            </div>
+                            <div id="answerResult" class="analysis-result" style="display: none;"></div>
+                        </div>
+
+                        <div class="tab-content" id="tab-risks">
+                            <button class="btn btn-primary" onclick="getRiskAnalysis()" id="risksBtn">
+                                Analyze Risks
+                            </button>
+                            <div id="risksResult" class="analysis-result" style="margin-top: 16px; display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/legal/api/v1';
+        let selectedDocumentId = null;
+        let documents = [];
+
+        // Check API status
+        async function checkStatus() {
+            try {
+                const res = await fetch(`${API_BASE}/analysis/status`);
+                const data = await res.json();
+                document.getElementById('statusDot').className = 'status-dot' + (data.available ? '' : ' offline');
+                document.getElementById('statusText').textContent = data.available ? 'Claude AI Ready' : 'AI Unavailable';
+            } catch (e) {
+                document.getElementById('statusDot').className = 'status-dot offline';
+                document.getElementById('statusText').textContent = 'API Offline';
+            }
+        }
+
+        // Load documents
+        async function loadDocuments() {
+            try {
+                const res = await fetch(`${API_BASE}/documents?limit=100`);
+                const data = await res.json();
+                documents = data.documents;
+                renderDocuments();
+            } catch (e) {
+                document.getElementById('documentList').innerHTML =
+                    '<div class="empty-state"><p>Failed to load documents</p></div>';
+            }
+        }
+
+        function renderDocuments() {
+            const list = document.getElementById('documentList');
+            if (documents.length === 0) {
+                list.innerHTML = '<div class="empty-state"><p>No documents yet</p></div>';
+                return;
+            }
+
+            list.innerHTML = documents.map(doc => `
+                <div class="document-item ${doc.id === selectedDocumentId ? 'selected' : ''}"
+                     onclick="selectDocument('${doc.id}')">
+                    <div class="doc-header">
+                        <span class="doc-name">${doc.original_filename}</span>
+                        <span class="doc-status ${doc.status.toLowerCase()}">${doc.status}</span>
+                    </div>
+                    <div class="doc-meta">
+                        ${formatSize(doc.file_size)} • ${formatDate(doc.created_at)}
+                        ${doc.word_count ? ` • ${doc.word_count} words` : ''}
+                    </div>
+                    <button class="delete-btn" onclick="event.stopPropagation(); deleteDocument('${doc.id}')">
+                        Delete
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function formatDate(dateStr) {
+            return new Date(dateStr).toLocaleDateString();
+        }
+
+        // Select document
+        async function selectDocument(id) {
+            selectedDocumentId = id;
+            const doc = documents.find(d => d.id === id);
+
+            document.getElementById('noSelection').style.display = 'none';
+            document.getElementById('documentDetail').style.display = 'block';
+            document.getElementById('detailFileName').textContent = doc.original_filename;
+
+            // Reset tabs
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelector('.tab[data-tab="text"]').classList.add('active');
+            document.getElementById('tab-text').classList.add('active');
+
+            // Reset analysis results
+            ['summaryResult', 'keytermsResult', 'answerResult', 'risksResult'].forEach(id => {
+                document.getElementById(id).style.display = 'none';
+            });
+
+            renderDocuments();
+
+            // Load extracted text
+            if (doc.status === 'COMPLETED') {
+                try {
+                    const res = await fetch(`${API_BASE}/documents/${id}/text`);
+                    const data = await res.json();
+                    document.getElementById('extractedText').textContent =
+                        data.extracted_text || 'No text extracted';
+                } catch (e) {
+                    document.getElementById('extractedText').textContent = 'Failed to load text';
+                }
+            } else {
+                document.getElementById('extractedText').textContent =
+                    `Document status: ${doc.status}. Please wait for processing to complete.`;
+            }
+        }
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        // Upload handling
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadZone.addEventListener('click', () => fileInput.click());
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                uploadFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) {
+                uploadFile(fileInput.files[0]);
+            }
+        });
+
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            document.getElementById('uploadProgress').style.display = 'block';
+            uploadZone.style.display = 'none';
+
+            try {
+                const res = await fetch(`${API_BASE}/documents/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!res.ok) throw new Error('Upload failed');
+
+                const doc = await res.json();
+                await loadDocuments();
+                selectDocument(doc.id);
+
+                // Poll for completion
+                pollDocumentStatus(doc.id);
+            } catch (e) {
+                alert('Upload failed: ' + e.message);
+            } finally {
+                document.getElementById('uploadProgress').style.display = 'none';
+                uploadZone.style.display = 'block';
+                fileInput.value = '';
+            }
+        }
+
+        async function pollDocumentStatus(id) {
+            const poll = async () => {
+                try {
+                    const res = await fetch(`${API_BASE}/documents/${id}/status`);
+                    const data = await res.json();
+
+                    if (data.status === 'COMPLETED' || data.status === 'FAILED') {
+                        await loadDocuments();
+                        if (selectedDocumentId === id) {
+                            selectDocument(id);
+                        }
+                        return;
+                    }
+
+                    setTimeout(poll, 2000);
+                } catch (e) {
+                    console.error('Poll error:', e);
+                }
+            };
+            poll();
+        }
+
+        // Delete document
+        async function deleteDocument(id) {
+            if (!confirm('Delete this document?')) return;
+
+            try {
+                await fetch(`${API_BASE}/documents/${id}`, { method: 'DELETE' });
+                if (selectedDocumentId === id) {
+                    selectedDocumentId = null;
+                    document.getElementById('noSelection').style.display = 'block';
+                    document.getElementById('documentDetail').style.display = 'none';
+                }
+                await loadDocuments();
+            } catch (e) {
+                alert('Delete failed');
+            }
+        }
+
+        // AI Analysis functions
+        async function getSummary() {
+            if (!selectedDocumentId) return;
+
+            const btn = document.getElementById('summaryBtn');
+            const result = document.getElementById('summaryResult');
+
+            btn.disabled = true;
+            btn.textContent = 'Generating...';
+            result.style.display = 'block';
+            result.innerHTML = '<div class="loading"><div class="spinner"></div>Analyzing with Claude AI...</div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/analysis/${selectedDocumentId}/summary`);
+                if (!res.ok) throw new Error('Analysis failed');
+                const data = await res.json();
+                result.innerHTML = data.summary.replace(/\n/g, '<br>');
+            } catch (e) {
+                result.innerHTML = '<p style="color: var(--error);">Failed to generate summary. Make sure Claude AI is configured.</p>';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Generate Summary';
+            }
+        }
+
+        async function getKeyTerms() {
+            if (!selectedDocumentId) return;
+
+            const btn = document.getElementById('keytermsBtn');
+            const result = document.getElementById('keytermsResult');
+
+            btn.disabled = true;
+            btn.textContent = 'Extracting...';
+            result.style.display = 'block';
+            result.innerHTML = '<div class="loading"><div class="spinner"></div>Analyzing with Claude AI...</div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/analysis/${selectedDocumentId}/key-terms`);
+                if (!res.ok) throw new Error('Analysis failed');
+                const data = await res.json();
+
+                const analysis = data.analysis;
+                let html = '<div class="key-terms-grid">';
+
+                if (analysis.document_type) {
+                    html += `<div class="key-term-card"><div class="key-term-label">Document Type</div><div class="key-term-value">${analysis.document_type}</div></div>`;
+                }
+                if (analysis.parties && analysis.parties.length) {
+                    html += `<div class="key-term-card"><div class="key-term-label">Parties</div><div class="key-term-value">${analysis.parties.join(', ')}</div></div>`;
+                }
+                if (analysis.effective_date) {
+                    html += `<div class="key-term-card"><div class="key-term-label">Effective Date</div><div class="key-term-value">${analysis.effective_date}</div></div>`;
+                }
+                if (analysis.jurisdiction) {
+                    html += `<div class="key-term-card"><div class="key-term-label">Jurisdiction</div><div class="key-term-value">${analysis.jurisdiction}</div></div>`;
+                }
+                if (analysis.monetary_values && analysis.monetary_values.length) {
+                    html += `<div class="key-term-card"><div class="key-term-label">Monetary Values</div><div class="key-term-value">${analysis.monetary_values.join(', ')}</div></div>`;
+                }
+
+                html += '</div>';
+
+                if (analysis.key_terms && analysis.key_terms.length) {
+                    html += '<h4 style="margin: 20px 0 10px;">Key Terms</h4><ul>';
+                    analysis.key_terms.forEach(term => html += `<li>${term}</li>`);
+                    html += '</ul>';
+                }
+
+                if (analysis.obligations && analysis.obligations.length) {
+                    html += '<h4 style="margin: 20px 0 10px;">Obligations</h4><ul>';
+                    analysis.obligations.forEach(o => html += `<li>${o}</li>`);
+                    html += '</ul>';
+                }
+
+                result.innerHTML = html;
+            } catch (e) {
+                result.innerHTML = '<p style="color: var(--error);">Failed to extract key terms.</p>';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Extract Key Terms';
+            }
+        }
+
+        async function askQuestion() {
+            if (!selectedDocumentId) return;
+
+            const input = document.getElementById('questionInput');
+            const question = input.value.trim();
+            if (!question) return;
+
+            const result = document.getElementById('answerResult');
+            result.style.display = 'block';
+            result.innerHTML = '<div class="loading"><div class="spinner"></div>Thinking...</div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/analysis/${selectedDocumentId}/ask`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question })
+                });
+                if (!res.ok) throw new Error('Question failed');
+                const data = await res.json();
+                result.innerHTML = `<strong>Q: ${question}</strong><br><br>${data.answer.replace(/\n/g, '<br>')}`;
+                input.value = '';
+            } catch (e) {
+                result.innerHTML = '<p style="color: var(--error);">Failed to get answer.</p>';
+            }
+        }
+
+        document.getElementById('questionInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') askQuestion();
+        });
+
+        async function getRiskAnalysis() {
+            if (!selectedDocumentId) return;
+
+            const btn = document.getElementById('risksBtn');
+            const result = document.getElementById('risksResult');
+
+            btn.disabled = true;
+            btn.textContent = 'Analyzing...';
+            result.style.display = 'block';
+            result.innerHTML = '<div class="loading"><div class="spinner"></div>Analyzing risks with Claude AI...</div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/analysis/${selectedDocumentId}/risks`);
+                if (!res.ok) throw new Error('Analysis failed');
+                const data = await res.json();
+                result.innerHTML = data.risk_analysis.replace(/\n/g, '<br>');
+            } catch (e) {
+                result.innerHTML = '<p style="color: var(--error);">Failed to analyze risks.</p>';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Analyze Risks';
+            }
+        }
+
+        // Settings functions
+        function openSettings() {
+            document.getElementById('settingsModal').classList.add('active');
+            loadCurrentKey();
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('active');
+            document.getElementById('keyUpdateResult').style.display = 'none';
+            document.getElementById('newApiKey').value = '';
+        }
+
+        async function loadCurrentKey() {
+            try {
+                const res = await fetch(`${API_BASE}/admin/api-key`);
+                if (res.status === 403) {
+                    document.getElementById('currentKeyPreview').textContent =
+                        'Admin access restricted to localhost';
+                    return;
+                }
+                const data = await res.json();
+                document.getElementById('currentKeyPreview').textContent = data.key_preview;
+            } catch (e) {
+                document.getElementById('currentKeyPreview').textContent = 'Failed to load';
+            }
+        }
+
+        async function updateApiKey() {
+            const newKey = document.getElementById('newApiKey').value.trim();
+            if (!newKey) {
+                alert('Please enter a new API key');
+                return;
+            }
+
+            if (!newKey.startsWith('sk-ant-')) {
+                alert('Invalid key format. Key should start with sk-ant-');
+                return;
+            }
+
+            const btn = document.getElementById('updateKeyBtn');
+            const result = document.getElementById('keyUpdateResult');
+
+            btn.disabled = true;
+            btn.textContent = 'Updating...';
+
+            try {
+                const res = await fetch(`${API_BASE}/admin/api-key`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: newKey })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    result.className = 'success-text';
+                    result.textContent = 'API key updated! Run "docker-compose restart api" to apply.';
+                    result.style.display = 'block';
+                    document.getElementById('newApiKey').value = '';
+                    loadCurrentKey();
+                } else {
+                    result.style.color = 'var(--error)';
+                    result.textContent = data.detail || 'Update failed';
+                    result.style.display = 'block';
+                }
+            } catch (e) {
+                result.style.color = 'var(--error)';
+                result.textContent = 'Failed to update key. Admin access may be restricted.';
+                result.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Update API Key';
+            }
+        }
+
+        // Close modal on escape or outside click
+        document.getElementById('settingsModal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                closeSettings();
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeSettings();
+        });
+
+        // Initialize
+        checkStatus();
+        loadDocuments();
+
+        // Auto-refresh documents every 10 seconds
+        setInterval(loadDocuments, 10000);
+    </script>
+</body>
+</html>
