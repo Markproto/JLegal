@@ -41,6 +41,8 @@ services:
       - STORAGE_PATH=/app/storage
       - MAX_UPLOAD_SIZE=${MAX_UPLOAD_SIZE:-104857600}
       - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - CLAUDE_MODEL=${CLAUDE_MODEL:-claude-sonnet-4-20250514}
     volumes:
       - document_storage:/app/storage
     depends_on:
