@@ -70,6 +70,63 @@
 
         .status-dot.offline { background: var(--error); }
 
+        /* Help/Info Icons */
+        .info-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--border);
+            color: var(--text);
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: help;
+            position: relative;
+            margin-left: 6px;
+            flex-shrink: 0;
+        }
+
+        .info-icon:hover { background: var(--primary); }
+
+        .tooltip {
+            display: none;
+            position: absolute;
+            bottom: calc(100% + 10px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 16px;
+            width: 280px;
+            font-size: 0.8rem;
+            font-weight: 400;
+            line-height: 1.5;
+            color: var(--text);
+            z-index: 100;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 8px solid transparent;
+            border-top-color: var(--border);
+        }
+
+        .info-icon:hover .tooltip { display: block; }
+
+        .tooltip-title {
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 6px;
+        }
+
         .main-grid {
             display: grid;
             grid-template-columns: 350px 1fr;
@@ -502,6 +559,15 @@
                 <div class="status-badge">
                     <span class="status-dot" id="statusDot"></span>
                     <span id="statusText">Checking...</span>
+                    <span class="info-icon" style="margin-left: 4px; width: 14px; height: 14px; font-size: 0.6rem;">i
+                        <div class="tooltip" style="width: 250px;">
+                            <div class="tooltip-title">Claude AI Status</div>
+                            Shows whether Claude AI is configured and ready for document analysis.
+                            <br><br>
+                            <strong>Green:</strong> AI ready<br>
+                            <strong>Red:</strong> API key needed (click ⚙️ to configure)
+                        </div>
+                    </span>
                 </div>
                 <button class="settings-btn" onclick="openSettings()" title="Settings">&#9881;</button>
             </div>
@@ -552,6 +618,16 @@
                 <div class="card">
                     <div class="card-title">
                         <span>Upload Document</span>
+                        <span class="info-icon">i
+                            <div class="tooltip">
+                                <div class="tooltip-title">Document Upload</div>
+                                Upload legal documents for text extraction and AI analysis.
+                                <br><br>
+                                <strong>Supported formats:</strong> PDF, DOCX, DOC, RTF, TXT, PNG, JPG, TIFF
+                                <br><br>
+                                <strong>Features:</strong> OCR for scanned documents, unlimited file processing via queue system.
+                            </div>
+                        </span>
                     </div>
                     <div class="upload-zone" id="uploadZone">
                         <div class="upload-icon">📄</div>
@@ -574,6 +650,18 @@
                 <div class="card" style="margin-top: 24px;">
                     <div class="card-title">
                         <span>Documents</span>
+                        <span class="info-icon">i
+                            <div class="tooltip">
+                                <div class="tooltip-title">Document Library</div>
+                                Your uploaded documents appear here with their processing status.
+                                <br><br>
+                                <strong>Status colors:</strong><br>
+                                🟡 Pending - Waiting in queue<br>
+                                🔵 Processing - Being analyzed<br>
+                                🟢 Completed - Ready for AI analysis<br>
+                                🔴 Failed - Error occurred
+                            </div>
+                        </span>
                         <button class="refresh-btn" onclick="loadDocuments()" title="Refresh">🔄</button>
                     </div>
                     <div class="document-list" id="documentList">
@@ -599,11 +687,53 @@
                         </div>
 
                         <div class="tabs">
-                            <button class="tab active" data-tab="text">Extracted Text</button>
-                            <button class="tab" data-tab="summary">AI Summary</button>
-                            <button class="tab" data-tab="keyterms">Key Terms</button>
-                            <button class="tab" data-tab="ask">Ask AI</button>
-                            <button class="tab" data-tab="risks">Risk Analysis</button>
+                            <button class="tab active" data-tab="text">
+                                Extracted Text
+                                <span class="info-icon" style="margin-left: 4px;">i
+                                    <div class="tooltip">
+                                        <div class="tooltip-title">Extracted Text</div>
+                                        The raw text extracted from your document using OCR (for images/scanned PDFs) or direct text extraction.
+                                    </div>
+                                </span>
+                            </button>
+                            <button class="tab" data-tab="summary">
+                                AI Summary
+                                <span class="info-icon" style="margin-left: 4px;">i
+                                    <div class="tooltip">
+                                        <div class="tooltip-title">AI-Powered Summary</div>
+                                        Claude AI generates a concise summary highlighting key parties, purpose, important dates, obligations, and notable clauses.
+                                    </div>
+                                </span>
+                            </button>
+                            <button class="tab" data-tab="keyterms">
+                                Key Terms
+                                <span class="info-icon" style="margin-left: 4px;">i
+                                    <div class="tooltip">
+                                        <div class="tooltip-title">Key Terms Extraction</div>
+                                        AI extracts structured data: document type, parties involved, dates, monetary values, jurisdiction, obligations, and more.
+                                    </div>
+                                </span>
+                            </button>
+                            <button class="tab" data-tab="ask">
+                                Ask AI
+                                <span class="info-icon" style="margin-left: 4px;">i
+                                    <div class="tooltip">
+                                        <div class="tooltip-title">Ask Questions</div>
+                                        Ask any question about the document. Claude AI will answer based only on the document content.
+                                        <br><br>
+                                        <em>Example: "What is the termination clause?"</em>
+                                    </div>
+                                </span>
+                            </button>
+                            <button class="tab" data-tab="risks">
+                                Risk Analysis
+                                <span class="info-icon" style="margin-left: 4px;">i
+                                    <div class="tooltip">
+                                        <div class="tooltip-title">Risk Analysis</div>
+                                        AI identifies potential risks: unfavorable terms, missing protections, ambiguous language, compliance concerns, and liability exposure.
+                                    </div>
+                                </span>
+                            </button>
                         </div>
 
                         <div class="tab-content active" id="tab-text">
