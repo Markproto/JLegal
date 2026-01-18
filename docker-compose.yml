@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jlegal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jlegal}
+      POSTGRES_DB: ${POSTGRES_DB:-jlegal}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jlegal}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for task queue
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Application
+  api:
+    build: .
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://jlegal:jlegal@db:5432/jlegal}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - STORAGE_PATH=/app/storage
+      - MAX_UPLOAD_SIZE=${MAX_UPLOAD_SIZE:-104857600}
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
+    volumes:
+      - document_storage:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  # Celery Worker for document processing
+  worker:
+    build: .
+    restart: always
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://jlegal:jlegal@db:5432/jlegal}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - STORAGE_PATH=/app/storage
+      - WORKERS_PER_CONTAINER=${WORKERS_PER_CONTAINER:-4}
+      - OCR_LANGUAGES=${OCR_LANGUAGES:-eng}
+    volumes:
+      - document_storage:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      celery -A app.worker worker --loglevel=info --concurrency=${WORKERS_PER_CONTAINER:-4}
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # Celery Beat for scheduled tasks (optional)
+  beat:
+    build: .
+    restart: always
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://jlegal:jlegal@db:5432/jlegal}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.worker beat --loglevel=info
+
+  # Flower for monitoring (optional, remove in production if not needed)
+  flower:
+    build: .
+    restart: always
+    ports:
+      - "5555:5555"
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+    depends_on:
+      - redis
+    command: celery -A app.worker flower --port=5555
+
+volumes:
+  postgres_data:
+  redis_data:
+  document_storage:
