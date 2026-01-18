@@ -10,6 +10,7 @@ JLegal is a legal document processing system with unlimited capacity, designed f
 - **Task Queue:** Celery with Redis
 - **Database:** PostgreSQL
 - **OCR:** Tesseract
+- **AI Analysis:** Claude API (Anthropic)
 - **Containerization:** Docker, Docker Compose
 
 ## Project Structure
@@ -62,6 +63,7 @@ alembic revision --autogenerate -m "msg" # Create migration
 
 ## API Endpoints
 
+### Document Management
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/api/v1/documents/upload` | POST | Upload document |
@@ -70,6 +72,19 @@ alembic revision --autogenerate -m "msg" # Create migration
 | `/api/v1/documents/{id}/status` | GET | Check processing status |
 | `/api/v1/documents/{id}/text` | GET | Get extracted text |
 | `/api/v1/documents/{id}` | DELETE | Delete document |
+
+### AI Analysis (Claude)
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/v1/analysis/status` | GET | Check if Claude AI is available |
+| `/api/v1/analysis/{id}/summary` | GET | Get AI summary of document |
+| `/api/v1/analysis/{id}/key-terms` | GET | Extract key terms & entities |
+| `/api/v1/analysis/{id}/ask` | POST | Ask questions about document |
+| `/api/v1/analysis/{id}/risks` | GET | Analyze potential risks |
+
+### System
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
 | `/health` | GET | Health check |
 | `/stats` | GET | Processing statistics |
 
@@ -83,6 +98,8 @@ MAX_UPLOAD_SIZE=104857600
 WORKERS_PER_CONTAINER=4
 OCR_LANGUAGES=eng
 SECRET_KEY=change-in-production
+ANTHROPIC_API_KEY=your-api-key-here
+CLAUDE_MODEL=claude-sonnet-4-20250514
 ```
 
 ## Deployment Target

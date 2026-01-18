@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     # Security
     secret_key: str = "change-this-in-production"
 
+    # Claude AI
+    anthropic_api_key: str = ""
+    claude_model: str = "claude-sonnet-4-20250514"
+
     class Config:
         env_file = ".env"
         extra = "ignore"
