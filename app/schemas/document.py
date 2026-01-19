@@ -4,7 +4,7 @@ from typing import Optional, List
 from uuid import UUID
 from pydantic import BaseModel, Field
 
-from app.models.document import ProcessingStatus
+from app.models.document import ProcessingStatus, DocumentCategory
 
 
 class DocumentBase(BaseModel):
@@ -26,6 +26,7 @@ class DocumentResponse(BaseModel):
     original_filename: str
     mime_type: str
     file_size: int
+    category: DocumentCategory = DocumentCategory.REGULAR
     status: ProcessingStatus
     error_message: Optional[str] = None
     extracted_text: Optional[str] = None

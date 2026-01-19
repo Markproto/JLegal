@@ -16,6 +16,14 @@ class ProcessingStatus(str, enum.Enum):
     FAILED = "failed"
 
 
+class DocumentCategory(str, enum.Enum):
+    """Document category for organizing documents."""
+    REGULAR = "regular"  # Regular documents to analyze
+    CASE_LAW = "case_law"  # Case law references
+    REGULATION = "regulation"  # Regulations and statutes
+    TEMPLATE = "template"  # Contract templates
+
+
 class Document(Base):
     """Document model for storing uploaded documents and their processing results."""
 
@@ -27,6 +35,13 @@ class Document(Base):
     mime_type = Column(String(100), nullable=False)
     file_size = Column(Integer, nullable=False)
     file_path = Column(String(1000), nullable=False)
+
+    # Category
+    category = Column(
+        SQLEnum(DocumentCategory),
+        default=DocumentCategory.REGULAR,
+        nullable=False
+    )
 
     # Processing
     status = Column(

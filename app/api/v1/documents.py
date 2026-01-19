@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.document import Document, ProcessingStatus
+from app.models.document import Document, ProcessingStatus, DocumentCategory
 from app.schemas.document import (
     DocumentResponse,
     DocumentListResponse,
@@ -27,12 +27,19 @@ settings = get_settings()
 @router.post("/upload", response_model=DocumentResponse)
 async def upload_document(
     file: UploadFile = File(...),
+    category: DocumentCategory = Query(DocumentCategory.REGULAR, description="Document category"),
     db: Session = Depends(get_db),
 ):
     """
     Upload a document for processing.
 
     Supported formats: PDF, DOCX, DOC, RTF, TXT, PNG, JPG, TIFF
+
+    Categories:
+    - regular: Documents to analyze
+    - case_law: Case law references for cross-referencing
+    - regulation: Regulations and statutes
+    - template: Contract templates
     """
     # Validate file
     if not file.filename:
@@ -76,6 +83,7 @@ async def upload_document(
         mime_type=mime_type,
         file_size=actual_size,
         file_path=file_path,
+        category=category,
         status=ProcessingStatus.PENDING,
     )
     db.add(document)
@@ -97,6 +105,7 @@ def list_documents(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     status: Optional[ProcessingStatus] = None,
+    category: Optional[DocumentCategory] = None,
     db: Session = Depends(get_db),
 ):
     """List all documents with optional filtering."""
@@ -104,6 +113,9 @@ def list_documents(
 
     if status:
         query = query.filter(Document.status == status)
+
+    if category:
+        query = query.filter(Document.category == category)
 
     total = query.count()
     documents = query.order_by(Document.created_at.desc()).offset(skip).limit(limit).all()

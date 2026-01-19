@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.document import Document, ProcessingStatus
+from app.models.document import Document, ProcessingStatus, DocumentCategory
 from app.services.claude_analyzer import get_claude_analyzer
 
 logger = logging.getLogger(__name__)
@@ -240,4 +240,133 @@ async def get_risk_analysis(
         document_id=document.id,
         filename=document.original_filename,
         risk_analysis=risk_analysis
+    )
+
+
+class SearchAllRequest(BaseModel):
+    """Request for searching all documents."""
+    query: str
+    include_case_law: bool = True
+
+
+class SearchResult(BaseModel):
+    """Single search result."""
+    document_id: UUID
+    filename: str
+    category: str
+    answer: str
+    relevance: str  # "high", "medium", "low"
+
+
+class SearchAllResponse(BaseModel):
+    """Response for searching all documents."""
+    query: str
+    total_searched: int
+    results: list[SearchResult]
+    case_law_referenced: int
+
+
+@router.post("/search-all", response_model=SearchAllResponse)
+async def search_all_documents(
+    request: SearchAllRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Search across all documents with optional case law cross-referencing.
+
+    This endpoint:
+    1. Gathers all case law documents from the reference library
+    2. Searches each regular document for the query
+    3. Cross-references with case law to identify violations or matches
+    """
+    analyzer = get_claude_analyzer()
+    if not analyzer.is_available():
+        raise HTTPException(
+            status_code=503,
+            detail="Claude API not configured. Set ANTHROPIC_API_KEY."
+        )
+
+    # Get case law documents for reference
+    case_law_docs = []
+    if request.include_case_law:
+        case_law_query = db.query(Document).filter(
+            Document.category.in_([DocumentCategory.CASE_LAW, DocumentCategory.REGULATION]),
+            Document.status == ProcessingStatus.COMPLETED
+        ).all()
+
+        for doc in case_law_query:
+            if doc.extracted_text:
+                # Limit each case law to first 2000 chars for context
+                case_law_docs.append({
+                    "name": doc.original_filename,
+                    "excerpt": doc.extracted_text[:2000]
+                })
+
+    # Build case law context for the prompt
+    case_law_context = ""
+    if case_law_docs:
+        case_law_context = "\n\n=== LEGAL REFERENCES (Case Law & Regulations) ===\n"
+        for cl in case_law_docs[:10]:  # Limit to 10 references
+            case_law_context += f"\n--- {cl['name']} ---\n{cl['excerpt']}\n"
+
+    # Get regular documents to search
+    regular_docs = db.query(Document).filter(
+        Document.category == DocumentCategory.REGULAR,
+        Document.status == ProcessingStatus.COMPLETED
+    ).all()
+
+    results = []
+    for doc in regular_docs:
+        if not doc.extracted_text:
+            continue
+
+        # Build the search prompt with case law context
+        prompt = f"""Analyze this document for the following query: "{request.query}"
+
+{case_law_context}
+
+=== DOCUMENT TO ANALYZE: {doc.original_filename} ===
+{doc.extracted_text[:8000]}
+
+Instructions:
+1. Search for content matching the query
+2. If case law or regulations are provided above, cross-reference to identify potential violations or matches
+3. Quote relevant text from the document
+4. Indicate where in the document the match appears (beginning, middle, end)
+5. If referencing case law, cite the specific case/regulation name
+6. Rate the relevance as HIGH, MEDIUM, or LOW
+
+If nothing relevant is found, respond with exactly: "NO_MATCH"
+"""
+        try:
+            answer = await analyzer.answer_question(doc.extracted_text, prompt)
+
+            if answer and "NO_MATCH" not in answer.upper():
+                # Determine relevance from the answer
+                relevance = "medium"
+                if "HIGH" in answer.upper():
+                    relevance = "high"
+                elif "LOW" in answer.upper():
+                    relevance = "low"
+
+                results.append(SearchResult(
+                    document_id=doc.id,
+                    filename=doc.original_filename,
+                    category=doc.category.value,
+                    answer=answer,
+                    relevance=relevance
+                ))
+        except Exception as e:
+            logger.error(f"Error searching document {doc.id}: {e}")
+            continue
+
+    # Sort by relevance
+    relevance_order = {"high": 0, "medium": 1, "low": 2}
+    results.sort(key=lambda x: relevance_order.get(x.relevance, 1))
+
+    return SearchAllResponse(
+        query=request.query,
+        total_searched=len(regular_docs),
+        results=results,
+        case_law_referenced=len(case_law_docs)
     )
