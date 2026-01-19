@@ -639,6 +639,9 @@
                         </p>
                     </div>
                     <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt,.rtf,.png,.jpg,.jpeg,.tiff">
+                    <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()" style="width: 100%; margin-top: 10px; padding: 14px;">
+                        📁 Select File to Upload
+                    </button>
                     <div id="uploadProgress" style="display: none;">
                         <div class="loading">
                             <div class="spinner"></div>
@@ -760,8 +763,13 @@
                             <div class="question-form">
                                 <input type="text" class="question-input" id="questionInput"
                                        placeholder="Ask a question about this document...">
-                                <button class="btn btn-primary" onclick="askQuestion()">Ask</button>
+                                <button class="btn btn-primary" onclick="askQuestion()" style="padding: 12px 24px; font-size: 1rem;">
+                                    ➤ Ask
+                                </button>
                             </div>
+                            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 16px;">
+                                Press Enter or click the Ask button to submit your question
+                            </p>
                             <div id="answerResult" class="analysis-result" style="display: none;"></div>
                         </div>
 
