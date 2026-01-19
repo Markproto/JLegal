@@ -638,10 +638,13 @@
                             PDF, DOCX, TXT, Images (OCR)
                         </p>
                     </div>
-                    <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt,.rtf,.png,.jpg,.jpeg,.tiff">
+                    <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt,.rtf,.png,.jpg,.jpeg,.tiff" multiple>
                     <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()" style="width: 100%; margin-top: 10px; padding: 14px;">
-                        📁 Select File to Upload
+                        📁 Select Files to Upload (Multi-select)
                     </button>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px; text-align: center;">
+                        You can select multiple files or drag & drop up to 100 documents
+                    </p>
                     <div id="uploadProgress" style="display: none;">
                         <div class="loading">
                             <div class="spinner"></div>
@@ -677,6 +680,32 @@
             </div>
 
             <div class="detail-panel">
+                <!-- Search All Documents Section -->
+                <div class="card" style="background: linear-gradient(135deg, #1e293b 0%, #312e81 100%);">
+                    <div class="card-title">
+                        <span>🔍 Search All Documents</span>
+                        <span class="info-icon">i
+                            <div class="tooltip">
+                                <div class="tooltip-title">Cross-Document Search</div>
+                                Search across ALL your uploaded documents at once. Find violations, specific clauses, or any text.
+                                <br><br>
+                                <strong>Examples:</strong><br>
+                                • "Find any violations of consumer protection law"<br>
+                                • "Find indemnification clauses"<br>
+                                • "Which documents mention arbitration?"
+                            </div>
+                        </span>
+                    </div>
+                    <div class="question-form">
+                        <input type="text" class="question-input" id="globalSearchInput"
+                               placeholder="Search all documents... (e.g., 'Find violations of law' or 'liability clauses')">
+                        <button class="btn btn-primary" onclick="searchAllDocuments()" style="padding: 12px 24px; font-size: 1rem;">
+                            🔎 Search All
+                        </button>
+                    </div>
+                    <div id="globalSearchResult" style="display: none; margin-top: 16px; max-height: 400px; overflow-y: auto;"></div>
+                </div>
+
                 <div class="card" id="detailCard">
                     <div id="noSelection" class="empty-state">
                         <div class="empty-state-icon">📋</div>
@@ -918,15 +947,67 @@
             e.preventDefault();
             uploadZone.classList.remove('dragover');
             if (e.dataTransfer.files.length) {
-                uploadFile(e.dataTransfer.files[0]);
+                uploadMultipleFiles(e.dataTransfer.files);
             }
         });
 
         fileInput.addEventListener('change', () => {
             if (fileInput.files.length) {
-                uploadFile(fileInput.files[0]);
+                uploadMultipleFiles(fileInput.files);
             }
         });
+
+        // Multi-file upload
+        async function uploadMultipleFiles(files) {
+            const fileArray = Array.from(files);
+            const total = fileArray.length;
+            let completed = 0;
+            let failed = 0;
+
+            document.getElementById('uploadProgress').style.display = 'block';
+            uploadZone.style.display = 'none';
+
+            const updateProgress = () => {
+                document.querySelector('#uploadProgress .loading span').textContent =
+                    `Uploading... ${completed}/${total} complete${failed > 0 ? ` (${failed} failed)` : ''}`;
+            };
+
+            // Upload files in parallel (max 5 at a time)
+            const uploadBatch = async (batch) => {
+                await Promise.all(batch.map(async (file) => {
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        const res = await fetch(`${API_BASE}/documents/upload`, {
+                            method: 'POST',
+                            body: formData
+                        });
+                        if (!res.ok) throw new Error('Upload failed');
+                        completed++;
+                    } catch (e) {
+                        failed++;
+                        console.error('Failed to upload:', file.name, e);
+                    }
+                    updateProgress();
+                }));
+            };
+
+            // Process in batches of 5
+            for (let i = 0; i < fileArray.length; i += 5) {
+                const batch = fileArray.slice(i, i + 5);
+                await uploadBatch(batch);
+            }
+
+            document.getElementById('uploadProgress').style.display = 'none';
+            uploadZone.style.display = 'block';
+            fileInput.value = '';
+
+            await loadDocuments();
+
+            if (failed > 0) {
+                alert(`Upload complete: ${completed} succeeded, ${failed} failed`);
+            }
+        }
 
         async function uploadFile(file) {
             const formData = new FormData();
@@ -1109,6 +1190,92 @@
         document.getElementById('questionInput').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') askQuestion();
         });
+
+        document.getElementById('globalSearchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchAllDocuments();
+        });
+
+        // Search across all documents
+        async function searchAllDocuments() {
+            const query = document.getElementById('globalSearchInput').value.trim();
+            if (!query) return;
+
+            const resultDiv = document.getElementById('globalSearchResult');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Searching all documents with Claude AI...</div>';
+
+            // Get all completed documents
+            const completedDocs = documents.filter(d => d.status === 'COMPLETED');
+
+            if (completedDocs.length === 0) {
+                resultDiv.innerHTML = '<p style="color: var(--warning);">No completed documents to search. Please upload documents and wait for processing.</p>';
+                return;
+            }
+
+            resultDiv.innerHTML = `<div class="loading"><div class="spinner"></div>Searching ${completedDocs.length} documents...</div>`;
+
+            const results = [];
+            let searched = 0;
+
+            // Search each document
+            for (const doc of completedDocs) {
+                try {
+                    const res = await fetch(`${API_BASE}/analysis/${doc.id}/ask`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            question: `${query}. If you find relevant content, quote the exact text and indicate approximately where it appears in the document (beginning, middle, or end). If nothing relevant is found, respond with just "No matches found."`
+                        })
+                    });
+
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (!data.answer.toLowerCase().includes('no matches found') &&
+                            !data.answer.toLowerCase().includes('not found') &&
+                            !data.answer.toLowerCase().includes('does not contain') &&
+                            !data.answer.toLowerCase().includes('no relevant')) {
+                            results.push({
+                                filename: doc.original_filename,
+                                docId: doc.id,
+                                answer: data.answer
+                            });
+                        }
+                    }
+                    searched++;
+                    resultDiv.innerHTML = `<div class="loading"><div class="spinner"></div>Searched ${searched}/${completedDocs.length} documents... Found ${results.length} matches</div>`;
+                } catch (e) {
+                    console.error('Search error for', doc.original_filename, e);
+                }
+            }
+
+            // Display results
+            if (results.length === 0) {
+                resultDiv.innerHTML = `
+                    <div style="padding: 20px; background: var(--bg-input); border-radius: 8px;">
+                        <p style="color: var(--text-muted);">No matches found in ${completedDocs.length} documents for:</p>
+                        <p style="font-style: italic; margin-top: 8px;">"${query}"</p>
+                    </div>`;
+            } else {
+                let html = `<div style="margin-bottom: 12px; color: var(--success); font-weight: 600;">
+                    ✓ Found matches in ${results.length} of ${completedDocs.length} documents
+                </div>`;
+
+                results.forEach((r, i) => {
+                    html += `
+                        <div style="background: var(--bg-input); padding: 16px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid var(--primary);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                <strong style="color: var(--primary);">📄 ${r.filename}</strong>
+                                <button class="btn btn-secondary" onclick="selectDocument('${r.docId}')" style="padding: 6px 12px; font-size: 0.75rem;">
+                                    View Document
+                                </button>
+                            </div>
+                            <div style="line-height: 1.6;">${r.answer.replace(/\n/g, '<br>')}</div>
+                        </div>`;
+                });
+
+                resultDiv.innerHTML = html;
+            }
+        }
 
         async function getRiskAnalysis() {
             if (!selectedDocumentId) return;
