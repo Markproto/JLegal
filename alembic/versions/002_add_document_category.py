@@ -25,7 +25,7 @@ def upgrade() -> None:
         'documents',
         sa.Column(
             'category',
-            sa.Enum('REGULAR', 'CASE_LAW', 'REGULATION', 'TEMPLATE', name='documentcategory'),
+            sa.Enum('regular', 'case_law', 'regulation', 'template', name='documentcategory'),
             nullable=False,
             server_default='regular'
         )
