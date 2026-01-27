@@ -944,7 +944,7 @@
             renderDocuments();
 
             // Load extracted text
-            if (doc.status === 'COMPLETED') {
+            if (doc.status.toUpperCase() === 'COMPLETED') {
                 try {
                     const res = await fetch(`${API_BASE}/documents/${id}/text`);
                     const data = await res.json();
@@ -1086,7 +1086,7 @@
                     const res = await fetch(`${API_BASE}/documents/${id}/status`);
                     const data = await res.json();
 
-                    if (data.status === 'COMPLETED' || data.status === 'FAILED') {
+                    if (data.status.toUpperCase() === 'COMPLETED' || data.status.toUpperCase() === 'FAILED') {
                         await loadDocuments();
                         if (selectedDocumentId === id) {
                             selectDocument(id);
@@ -1252,7 +1252,7 @@
                 renderReferenceLibrary();
 
                 // Update reference count in search section
-                const completedRefs = referenceDocuments.filter(d => d.status === 'COMPLETED').length;
+                const completedRefs = referenceDocuments.filter(d => d.status.toUpperCase() === 'COMPLETED').length;
                 document.getElementById('refCount').textContent = `(${completedRefs} references loaded)`;
             } catch (e) {
                 console.error('Failed to load reference library:', e);

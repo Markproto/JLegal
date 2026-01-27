@@ -18,16 +18,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Create the category enum type
-    op.execute("CREATE TYPE documentcategory AS ENUM ('regular', 'case_law', 'regulation', 'template')")
+    # Must use uppercase names to match SQLAlchemy's default behavior
+    # with Python Enum classes (sends .name, not .value)
+    op.execute("CREATE TYPE documentcategory AS ENUM ('REGULAR', 'CASE_LAW', 'REGULATION', 'TEMPLATE')")
 
     # Add the category column with default value
     op.add_column(
         'documents',
         sa.Column(
             'category',
-            sa.Enum('regular', 'case_law', 'regulation', 'template', name='documentcategory'),
+            sa.Enum('REGULAR', 'CASE_LAW', 'REGULATION', 'TEMPLATE', name='documentcategory'),
             nullable=False,
-            server_default='regular'
+            server_default='REGULAR'
         )
     )
 
